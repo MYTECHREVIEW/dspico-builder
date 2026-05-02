@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  dspico-builder:
+    build: .
+    container_name: dspico-builder
+    volumes:
+      - ${ROMS_DIR}:/roms:ro
+      - ${OUTPUT_DIR}:/output
+    restart: "no" # Set to no so it doesn't loop building
