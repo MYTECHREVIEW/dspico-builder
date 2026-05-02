@@ -26,6 +26,8 @@ ENV PATH="/usr/bin/dotnet:${PATH}"
 
 # 4. Setup Build Directory
 WORKDIR /build
+COPY . .
+RUN chmod +x build.sh
 
 # 5. Default command is to run the build script
 CMD ["/bin/bash", "/build/build.sh"]
