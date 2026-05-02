@@ -1,46 +1,42 @@
 FROM ubuntu:22.04
 
-# Prevent interactive prompts during installation
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install base dependencies
+# 1. Install System Dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    git \
     wget \
     curl \
+    git \
+    build-essential \
+    cmake \
     python3 \
     unzip \
-    zip \
-    gcc-arm-none-eabi \
-    libnewlib-arm-none-eabi \
+    libarchive-tools \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install .NET 9.0 SDK
-RUN wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb \
-    && dpkg -i packages-microsoft-prod.deb \
-    && rm packages-microsoft-prod.deb \
+# 2. Install .NET 9.0 SDK (Required for PicoLoaderConverter)
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+    && chmod +x dotnet-install.sh \
+    && ./dotnet-install.sh --channel 9.0 --install-dir /usr/local/bin/dotnet \
+    && ln -s /usr/local/bin/dotnet/dotnet /usr/bin/dotnet
+
+# 3. Install Wonderful Toolchain & BlocksDS
+RUN wget -qO- https://wonderful.asie.pl/key.gpg | gpg --dearmor > /usr/share/keyrings/wonderful.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/wonderful.gpg] https://wonderful.asie.pl/apt generic main" > /etc/apt/sources.list.d/wonderful.list \
     && apt-get update \
-    && apt-get install -y dotnet-sdk-9.0 \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y wonderful-toolchain \
+    && export PATH=/opt/wonderful/bin:$PATH \
+    && wf-pacman -Syu --noconfirm \
+    && wf-tools repo enable blocksds \
+    && wf-pacman -Syu --noconfirm \
+    && wf-pacman -S --noconfirm blocksds-toolchain
 
-# Install BlocksDS
-RUN mkdir -p /opt/blocksds \
-    && wget https://github.com/blocksds/sdk/releases/download/v1.7.0/blocksds-linux-x64.zip -O blocksds.zip \
-    && unzip blocksds.zip -d /opt/blocksds \
-    && rm blocksds.zip
-ENV BLOCKSDS=/opt/blocksds
+# 4. Set Environment Variables
+ENV PATH="/usr/bin/dotnet:/opt/wonderful/bin:/opt/wonderful/toolchain/gcc-arm-none-eabi/bin:${PATH}"
+ENV BLOCKSDATA=/opt/wonderful/thirdparty/blocksds/core
+ENV BLOCKSDS=/opt/wonderful/thirdparty/blocksds/core
 
-# Setup build directory
+# 5. Setup Build Directory
 WORKDIR /build
 
-# Copy build script
-COPY build.sh /build/build.sh
-RUN chmod +x /build/build.sh
-
-# Environment variables for Pico SDK (will be set during build)
-ENV PICO_SDK_PATH=/build/dspico-firmware/pico-sdk
-
-# Default command
-CMD ["/build/build.sh"]
+# 6. Default command is to run the build script
+CMD ["/bin/bash", "/build/build.sh"]
